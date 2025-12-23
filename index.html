@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>IT知識のシェア</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 16px;
+      line-height: 1.6;
+    }
+
+    header {
+      border-bottom: 1px solid #ccc;
+      margin-bottom: 16px;
+    }
+
+    /* タブのボタン部分 */
+    /* タブ全体の並び */
+    .tab-buttons {
+      display: flex;
+      gap: 0;               /* すき間なしでつなげたいなら 0 */
+      border-bottom: 1px solid #ccc;
+      margin: 16px 0;
+    }
+
+    /* タブ1個1個（ボタンだけど見た目はタブ） */
+    .tab-button {
+      border: none;         /* 枠線消す */
+      background: none;     /* 背景も消す */
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 16px;
+      color: #555;
+      border-bottom: 3px solid transparent;  /* 下線だけ使ってタブ感を出す */
+      /* ボタンっぽさを消すおまじない（ブラウザ依存の装飾を消す） */
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    /* ホバー時の軽い反応 */
+    .tab-button:hover {
+      background-color: #f5f5f5;
+    }
+
+    /* 選択中のタブ */
+    .tab-button.active {
+      color: #000;
+      font-weight: bold;
+      border-bottom-color: #333;  /* 下線に色をつけて「選ばれてる感」 */
+    }
+
+
+    /* 記事リストのコンテナ */
+    .article-list {
+      display: none;  /* JSで表示/非表示を切り替える */
+    }
+    .article-list.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+    </nav>
+  </header>
+
+  <h2>記事一覧</h2>
+
+  <!-- ▼ タブ切り替えボタン -->
+  <div class="tab-buttons">
+    <button class="tab-button active" data-target="list-news">
+      毎日自動更新のITニュース
+    </button>
+    <button class="tab-button" data-target="list-work">
+      現場で使える
+    </button>
+    <button class="tab-button" data-target="list-made">
+      その他IT技術
+    </button>
+  </div>
+
+  <!-- ▼ Newsリスト -->
+  <div id="list-news" class="article-list active">
+    <ul>
+      <!-- 毎日自動更新のニュース記事 -->
+      <section id="top-news" style="margin-top:16px;">
+        <ul id="news-list"></ul>
+        <div id="news-error" style="color:#c00; white-space:pre-wrap;"></div>
+      </section>
+    </ul>
+  </div>
+
+  <!-- ▼ 現場で使えるリスト -->
+  <div id="list-work" class="article-list">
+    <ul>
+      <!-- ここに「現場で使える」記事を追加していく -->
+      <li><a href="posts/win_command_file.html">Windowsコマンド：テキスト系ファイルの操作</a> (2025-11-27)</li>
+      <li><a href="posts/win_command.html">Windowsコマンド：フォルダの操作</a> (2025-11-25)</li>
+      <li><a href="posts/raspi-introduction.html">はじめに</a>(2025-11-23)
+      </li>
+      <!-- どんどん増やせる -->
+    </ul>
+  </div>
+
+  <!-- ▼ その他IT技術記事用リスト -->
+  <div id="list-made" class="article-list">
+    <ul>
+      <!-- ここに「その他IT技術」系の記事を並べる -->
+      <li><a href="posts/raspi-wevserver.html">(作成中)自宅Webサーバ作成：ラズパイをWebサーバ化</a>(2025-11-)
+      </li>
+      <li><a href="posts/raspi-otherpc_control.html">自宅Webサーバ作成：他のPCから操作できるようにする</a>(2025-11-23)
+      </li>
+      <li><a href="posts/raspi-webserver-setup.html">自宅Webサーバ作成：ラズパイの準備と設定</a>(2025-11-23)
+      </li>
+    </ul>
+  </div>
+
+  <footer>
+    <p>c 2025 hi</p>
+  </footer>
+
+  <!-- ニュース表示JavaScript -->
+  <script>
+    (async () => {
+      const list = document.getElementById("news-list");
+      const err  = document.getElementById("news-error");
+
+      function escapeHtml(s) {
+        return String(s ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      try {
+        // 朝に生成されたまとめを読むだけ
+        const res = await fetch("/api/digest");
+        const data = await res.json();
+
+        if (!res.ok || data.status !== "ok") {
+          throw new Error(data.message || `HTTP ${res.status}`);
+        }
+
+        const items = data.items || [];
+        list.innerHTML = "";
+
+        for (const it of items) {
+          const li = document.createElement("li");
+          const dt = it.publishedAt
+            ? new Date(it.publishedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+            : "";
+
+          li.innerHTML = `
+            <div>
+              <a class="news-link" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
+                ${escapeHtml(it.title_ja || it.title || it.url)}
+              </a>
+            </div>
+            <div style="font-size:0.9em;opacity:0.8;">
+              ${escapeHtml(it.source || "")}${dt ? " / " + escapeHtml(dt) : ""}
+              ${(it.tags || []).map(t => ` <span style="border:1px solid #ddd;border-radius:999px;padding:1px 8px;font-size:0.85em;opacity:.9;">${escapeHtml(t)}</span>`).join("")}
+            </div>
+
+            <div style="margin:8px 0 12px; padding:10px; border:1px solid #ddd; border-radius:10px;">
+              <div style="margin-top:6px;">${escapeHtml(it.summary_ja || "")}</div>
+
+              <ul style="margin:8px 0 0; padding-left:18px;">
+                ${(it.key_points || []).map(x => `<li>${escapeHtml(x)}</li>`).join("")}
+              </ul>
+
+              <details style="margin-top:10px;">
+                <summary style="cursor:pointer;">用語解説</summary>
+                <ul style="margin:8px 0 0; padding-left:18px;">
+                  ${(it.glossary || []).map(g => `<li><b>${escapeHtml(g.term)}</b>: ${escapeHtml(g.explain_ja)}</li>`).join("")}
+                </ul>
+              </details>
+
+              <details style="margin-top:10px;">
+                <summary style="cursor:pointer;">個人でできること</summary>
+                <ul style="margin:8px 0 0; padding-left:18px;">
+                  ${(it.personal_actions || []).map(a => `<li>${escapeHtml(a)}</li>`).join("")}
+                </ul>
+              </details>
+            </div>
+          `;
+
+          list.appendChild(li);
+        }
+
+        // 生成時刻も出したいなら（任意）
+        // err.textContent = `生成: ${data.generatedAtJST || data.generatedAt || ""}`;
+
+      } catch (e) {
+        err.textContent = String(e);
+      }
+    })();
+    </script>
+
+  <!-- タブ切り替えJavaScript -->
+  <script>
+    // タブ切り替え
+    document.querySelectorAll(".tab-button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.dataset.target;
+
+        // ボタンの active 切り替え
+        document.querySelectorAll(".tab-button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+
+        // リストの active 切り替え
+        document.querySelectorAll(".article-list").forEach((sec) => sec.classList.remove("active"));
+        const target = document.getElementById(targetId);
+        if (target) target.classList.add("active");
+      });
+    });
+  </script>
+
+
+</body>
+</html>
