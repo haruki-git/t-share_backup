@@ -50,7 +50,7 @@ scripts/（現状）
 ```bash
 cd /opt/tshare-api
 npm ci
----
+```
 
 
 ## APIを常駐させる（推奨）
