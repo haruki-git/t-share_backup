@@ -1,0 +1,67 @@
+★セキュリティチェック項目
+・HTTPSがちゃんとしているかの確認　⇒OK
+・HSTS を入れる（まずは短め→問題なければ延ばす）　⇒OK
+・主要セキュリティヘッダを追加（OWASP推奨の系統）　⇒OK
+・サーバ情報の出しすぎを抑える（Serverヘッダの指紋を減らす）
+・すぐに“点数化”して確認したいなら
+
+
+
+★チェック項目の実施
+■ HTTPSがちゃんとしているかの確認
+1) リダイレクト確認（HTTP→HTTPS）
+  curl -I http://t-share.duckdns.org/index.html
+※HTTP/1.1 301（または302）と Location: https://... が出ればOK（Locationヘッダで飛ばしてる）。
+
+2) 証明書とHSTS確認（“強いHTTPS”になってるか）
+  curl -I https://t-share.duckdns.org/index.html
+※ここで Strict-Transport-Security: が出ていれば、ブラウザが「今後はHTTPを使わない」モードになってより安全です
+
+
+■ HSTS を入れる（まずは短め→問題なければ延ばす）
+HSTS は強い反面、長期間にすると「証明書が切れた/壊れた」とき復旧が面倒になるので、最初は短め推奨。
+preload を狙うなら max-age>=31536000 と includeSubDomains が必要、など要件もあります。
+Apache なら mod_headers で付けられます。
+例（まずは 1日=86400秒）：
+  sudo a2enmod headers
+  sudo tee /etc/apache2/conf-available/security-headers.conf >/dev/null <<'EOF'
+  <IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=86400"
+  </IfModule>
+  EOF
+  sudo a2enconf security-headers
+  sudo systemctl reload apache2
+
+確認：
+  curl -I https://t-share.duckdns.org/index.html | grep -i strict-transport-security
+
+
+■ 主要セキュリティヘッダを追加（OWASP推奨の系統）
+OWASPは、XSS・クリックジャッキング等の軽減に レスポンスヘッダを推奨しています。
+おすすめ：この内容に“置き換え”（一番ミスが少ない）
+  sudo tee /etc/apache2/conf-available/security-headers.conf >/dev/null <<'EOF'
+  <IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=86400"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "SAMEORIGIN"
+  </IfModule>
+  EOF
+
+反映：
+  sudo systemctl reload apache2
+
+反映確認
+  curl -I https://t-share.duckdns.org/index.html | egrep -i \
+  'strict-transport-security|x-content-type-options|referrer-policy|x-frame-options'
+
+
+■ サーバ情報の出しすぎを抑える（Serverヘッダの指紋を減らす）
+Apacheには ServerTokens / ServerSignature でサーバ識別情報の出し方を制御できます。
+  ServerTokens Prod
+  ServerSignature Off
+
+
+■ すぐに“点数化”して確認したいなら
+Mozilla の HTTP Observatory にURLを入れると、HSTS/CSPなどの不足が一覧で出ます。
+
