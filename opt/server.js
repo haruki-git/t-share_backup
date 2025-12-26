@@ -2,18 +2,45 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import "dotenv/config";
+import genbaRouter from "./routes/genba.js";
+import genbaThemesRouter from "./routes/genba_themes.js";
 
 const app = express();
+
+// JSONはここ1回でOK
+app.use(express.json({ limit: "1mb" }));
+
+app.use((req, _res, next) => {
+  console.log("REQ", req.method, req.url);
+  next();
+});
+
+// どちらも /api/genba 配下でOK（ルートが被らなければ共存できます）
+app.use("/api/genba", genbaRouter);
+app.use("/api/genba", genbaThemesRouter);
 
 // --- boot log ---
 console.log("boot: server.js loaded");
 console.log("boot: has NEWSAPI_KEY =", !!process.env.NEWSAPI_KEY);
 console.log("boot: has OPENAI_API_KEY =", !!process.env.OPENAI_API_KEY);
+if (process.env.DEBUG_ROUTES === "1") {
+  console.log(
+    "boot: genba mounted paths =",
+    (genbaRouter.stack ?? []).map(s => s.route?.path).filter(Boolean)
+  );
+  console.log(
+    "boot: genba_themes mounted paths =",
+    (genbaThemesRouter.stack ?? []).map(s => s.route?.path).filter(Boolean)
+  );
+}
+
+
 
 // --------------------
 // health
 // --------------------
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
     hasNewsKey: !!process.env.NEWSAPI_KEY,
@@ -24,7 +51,7 @@ app.get("/api/health", (req, res) => {
 // --------------------
 // /api/digest  (キャッシュを返すだけ)
 // --------------------
-app.get("/api/digest", (req, res) => {
+app.get("/api/digest", (_req, res) => {
   try {
     const p = "/opt/tshare-api/data/digest.json";
     const j = JSON.parse(fs.readFileSync(p, "utf-8"));
@@ -201,8 +228,70 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
+
 // --------------------
-// listen
+// /api/translate (Gemini)翻訳機能用
+// --------------------
+app.post("/api/translate", async (req, res) => {
+  try {
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+    if (!GEMINI_API_KEY) {
+      return res.status(500).json({ message: "GEMINI_API_KEY is missing" });
+    }
+
+    const text = String(req.body?.text ?? "").trim();
+    const src = req.body?.src_lang === "ja" ? "ja" : "en";
+    const tgt = req.body?.target_lang === "en" ? "en" : "ja";
+
+    if (!text) return res.status(400).json({ message: "text is required" });
+    if (src === tgt) return res.json({ translated: text });
+
+    // 長すぎる入力は切る（料金/遅延対策）
+    const MAX_CHARS = 8000;
+    const clipped = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text;
+
+    const prompt =
+      `Translate from ${src} to ${tgt}.\n` +
+      `Rules:\n` +
+      `- Output translation only (no commentary).\n` +
+      `- Keep code blocks, stack traces, file paths, identifiers, error names unchanged as much as possible.\n\n` +
+      clipped;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      GEMINI_MODEL
+    )}:generateContent`;
+
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY,
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      }),
+    });
+
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      throw new Error(`Gemini API HTTP ${r.status}: ${body}`);
+    }
+
+    const data = await r.json();
+    const translated =
+      data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim() || "";
+
+    return res.json({ translated });
+  } catch (e) {
+    return res.status(500).json({ message: String(e?.message || e) });
+  }
+});
+
+
+// --------------------
+// listen（1回だけ） :contentReference[oaicite:5]{index=5}
 // --------------------
 app.listen(3000, "127.0.0.1", () => {
   console.log("API listening on http://127.0.0.1:3000");
