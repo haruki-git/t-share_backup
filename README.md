@@ -54,32 +54,40 @@ npm ci
 
 
 ## APIを常駐させる（推奨）
+```bash
 sudo systemctl enable --now tshare-api.service
 sudo systemctl status tshare-api.service --no-pager
-
+```
 
 ### 自動実行（systemd timers）
 #### タイマ確認
+```bash
 systemctl list-timers --all | grep tshare
-
+```
 
 ### 手動実行（動作確認）
 #### digest（今すぐ1回回す）
+```bash
 sudo systemctl start tshare-digest.service
 journalctl -u tshare-digest.service -n 200 --no-pager
-
+```
 
 #### genba週次生成（今すぐ1回回す）
+```bash
 sudo systemctl start tshare-genba-weekly.service
 journalctl -u tshare-genba-weekly.service -n 200 --no-pager
-
+```
 
 ### ログ
 # API
+```bash
 journalctl -u tshare-api.service -n 200 --no-pager
-
+```
 # digest
+```bash
 journalctl -u tshare-digest.service -n 200 --no-pager
-
+```
 # genba weekly
+```bash
 journalctl -u tshare-genba-weekly.service -n 200 --no-pager
+```
