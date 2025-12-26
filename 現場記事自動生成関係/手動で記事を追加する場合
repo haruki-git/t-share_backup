@@ -1,0 +1,19 @@
+方式A（おすすめ）：普通にHTMLを置くだけ → 一覧に“混ぜる”
+
+１，手動記事を作る（例：/var/www/html/posts/ に置く）
+
+２，一覧生成スクリプトに登録する
+/opt/tshare-api/scripts/build_genba_index.js
+中の MANUAL_ITEMS に1行追加（または復活）するだけ。
+例）手動記事を追加したい：
+const MANUAL_ITEMS = [
+  { href: "../win_command_file.html", title: "Windowsコマンド：テキスト系ファイルの操作", date: "2025-11-27" },
+  { href: "../win_command.html",      title: "Windowsコマンド：フォルダの操作",        date: "2025-11-25" },
+  // これを追加したいならこう
+  // { href: "../raspi-introduction.html", title: "はじめに", date: "2025-11-23" },
+];
+
+３,一覧を再生成
+node /opt/tshare-api/scripts/build_genba_index.js
+
+４，表示確認
