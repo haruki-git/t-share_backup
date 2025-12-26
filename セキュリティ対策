@@ -1,9 +1,15 @@
+※GitHubに載せない：
+- /opt/api_key/.env の中身（APIキー等）
+- /etc/apache2/auth/tshare-admin.htpasswd（Basic認証のパスワードファイル本体）
+
+
 ★セキュリティチェック項目
-・HTTPSがちゃんとしているかの確認　⇒OK
-・HSTS を入れる（まずは短め→問題なければ延ばす）　⇒OK
-・主要セキュリティヘッダを追加（OWASP推奨の系統）　⇒OK
-・サーバ情報の出しすぎを抑える（Serverヘッダの指紋を減らす）
-・すぐに“点数化”して確認したいなら
+[〇] HTTPSがちゃんとしているかの確認
+[〇] HSTS を入れる（まずは短め→問題なければ延ばす)
+[〇] 主要セキュリティヘッダを追加（OWASP推奨の系統）
+[〇] 管理系API保護(パスワード保護を採用)
+[未] サーバ情報の出しすぎを抑える（Serverヘッダの指紋を減らす）
+[未] すぐに“点数化”して確認したいなら
 
 
 
@@ -54,6 +60,62 @@ OWASPは、XSS・クリックジャッキング等の軽減に レスポンス�
 反映確認
   curl -I https://t-share.duckdns.org/index.html | egrep -i \
   'strict-transport-security|x-content-type-options|referrer-policy|x-frame-options'
+
+
+■ 管理系API保護
+①IP制限か ②Basic認証（または両方）を掛けるのが一番ラクで強いです。
+Apache 2.4 のアクセス制御は Require ip、Basic認証は AuthType Basic / AuthUserFile / Require valid-user を使います。 
+（OWASP的にも「認可・認証の欠落」がAPIで致命傷になりやすいので、更新系エンドポイントを最優先で守るのが正解。）
+手順0：まず「守るURL」を特定（1分）
+# Expressのルートから当たりを付ける
+  ls -1 /opt/tshare-api/routes
+  grep -RE --exclude-dir=node_modules "router\.(get|post|delete|put|patch)" -n /opt/tshare-api/routes | head
+
+1) まず “最終URL” を確定する（コピペ）
+(A) ルート定義を全部見る
+  grep -RE --exclude-dir=node_modules "router\.(get|post|delete|put|patch)" -n /opt/tshare-api/routes
+
+(B) router がどこに mount されてるか（app.use）を探す
+  grep -R "app\.use" -n /opt/tshare-api | head -n 50
+
+2) いちばん楽で堅い：POST/DELETEは「場所に関係なく」常にパスワード必須
+  # 1) 認証モジュール有効化（Debian系）
+  sudo a2enmod auth_basic authn_file
+  
+  # 2) Basic認証ユーザ作成（admin を作る）
+  sudo mkdir -p /etc/apache2/auth
+  sudo htpasswd -c /etc/apache2/auth/tshare-admin.htpasswd admin
+  # ↑ パスワードを2回聞かれる
+  
+  # 3) 「POST/DELETE等だけ」認証必須にする設定を作成（vhost編集不要）
+  sudo tee /etc/apache2/conf-available/tshare-admin-api.conf >/dev/null <<'EOF'
+  <LocationMatch "^/api/genba/themes(/|$)">
+    <LimitExcept GET HEAD OPTIONS>
+      AuthType Basic
+      AuthName "tshare admin"
+      AuthUserFile /etc/apache2/auth/tshare-admin.htpasswd
+      Require valid-user
+    </LimitExcept>
+  </LocationMatch>
+  EOF
+  
+  # 4) confを有効化して反映
+  sudo a2enconf tshare-admin-api
+  sudo systemctl reload apache2
+  
+  # 5) 動作確認（未認証のPOSTは 401 になるのが正解）
+  curl -i -X POST https://t-share.duckdns.org/api/genba/themes
+  
+  # 6) 認証して叩く（401じゃなくなればOK。中身次第で400/200等になる）
+  curl -i -u admin -X POST https://t-share.duckdns.org/api/genba/themes
+
+  # 7) ユーザ名の追加 or つくり直し(どちらかを実行)
+  # 7-1) ユーザーを追加する場合
+  sudo htpasswd /etc/apache2/auth/tshare-admin.htpasswd ユーザー名
+  sudo systemctl reload apache2
+  # 7-2) 既存ユーザーを消してからユーザーをつくり直しする場合
+  sudo htpasswd -c /etc/apache2/auth/tshare-admin.htpasswd ユーザー名
+  sudo systemctl reload apache2
 
 
 ■ サーバ情報の出しすぎを抑える（Serverヘッダの指紋を減らす）
