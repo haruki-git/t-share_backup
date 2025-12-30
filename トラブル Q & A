@@ -11,3 +11,18 @@ sudo systemctl status tshare-api.service --no-pager -l
 curl -i http://127.0.0.1:3000/api/genba/themes
 {"status":"ok","items":[]}みたいなのが返ってきたらOK
 
+●問題
+ニュース記事が更新されない
+--回答--
+とりあえず動作確認方法
+確認（サーバ側）
+curl -s "https://t-share.duckdns.org/data/digest.json?t=$(date +%s)" | head -n 8
+トップがそれを読んでるか（Apacheログ）
+sudo tail -n 20 /var/log/apache2/access.log | egrep "index\.html|data/digest\.json" | tail -n 20
+
+手動更新を1コマンドにまとめる版（コピペ用）
+cd /opt/tshare-api \
+&& set -a; source /opt/api_key/.env; set +a \
+&& node scripts/generate_digest.js --force \
+&& sudo install -m 664 -o hi -g www-data /opt/tshare-api/data/digest.json /var/www/html/data/digest.json \
+&& curl -s "https://t-share.duckdns.org/data/digest.json?t=$(date +%s)" | head -n 8
