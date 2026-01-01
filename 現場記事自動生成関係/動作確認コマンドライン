@@ -41,6 +41,19 @@ sudo systemctl start tshare-genba-weekly.service
 journalctl -u tshare-genba-weekly.service -n 200 --no-pager
 ls -la /var/www/html/posts/genba/
 
+※キューを先頭に割り込ませる(記事生成はなし)
+node - <<'NODE'
+const fs = require("fs");
+const p = "/opt/tshare-api/data/genba_queue.json";
+let q = [];
+try { q = JSON.parse(fs.readFileSync(p,"utf8")); } catch {}
+if (!Array.isArray(q)) q = [];
+q.unshift({ id: "t_test_"+Date.now(), theme: "テスト: 先頭投入" });
+fs.writeFileSync(p, JSON.stringify(q, null, 2), "utf8");
+console.log("ok. new length =", q.length);
+NODE
+
+
 キュー空でも生成する仕様にしたなら（空にして確認）※現状はキューが空だと正常終了する仕様
 printf "[]\n" | sudo tee /opt/tshare-api/data/genba_queue.json >/dev/null
 sudo systemctl start tshare-genba-weekly.service
