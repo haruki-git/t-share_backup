@@ -66,7 +66,7 @@ journalctl -u tshare-genba-weekly.service -n 200 --no-pager
 
 ●小項目も指定できるタイプのコード(Python/VBA用記事)で、小項目を指定して連続実行
 1,genba_queue.json
-のファイルにデータを入れて保存。下記は例。
+のファイルにデータを入れて保存。下記は例。※既存の生成予定も消えるので注意。
 [
   {
     "id": "001",
