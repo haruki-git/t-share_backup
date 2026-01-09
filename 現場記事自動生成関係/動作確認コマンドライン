@@ -62,3 +62,56 @@ journalctl -u tshare-genba-weekly.service -n 200 --no-pager
 
 5,ブラウザで確認
 
+
+
+●小項目も指定できるタイプのコード(Python/VBA用記事)で、小項目を指定して連続実行
+1,genba_queue.json
+のファイルにデータを入れて保存。下記は例。
+[
+  {
+    "id": "001",
+    "theme": "Pythonはどんなプログラミング言語？（はじめに）",
+    "subTopics": [
+      "Pythonって一言でいうと？（何が得意？）",
+      "Pythonでできること（自動化・データ処理・Web・AIなど）",
+      "Pythonが選ばれやすい理由（読みやすい／試しやすい）",
+      "苦手なこと・注意点（速度・インデントなど）",
+      "他の言語と何が違う？（ざっくり比較）"
+    ]
+  },
+  {
+    "id": "002",
+    "theme": "Pythonの環境設定（Windows + VSCodeで動かすまで）",
+    "subTopics": [
+      "ゴール：VSCodeでPythonが1本動く状態にする",
+      "Python本体のインストールと確認（PATH／python --version）",
+      "VSCodeの準備（Python拡張・フォルダを開く）",
+      "Hello Worldを実行（hello.py作成→実行）",
+      "つまずきポイントTOP3（pythonが見つからない／インタプリタ違い／未保存）"
+    ]
+  }
+]
+
+2,下記のプロンプトを実行する
+========================
+sudo -u hi bash -lc '
+set -e
+cd /opt/tshare-api
+set -a; source /opt/api_key/.env; set +a
+
+max=200
+i=0
+while true; do
+  n=$(node -e "const fs=require(\"fs\");const q=JSON.parse(fs.readFileSync(\"/opt/tshare-api/data/genba_queue.json\",\"utf8\"));console.log(Array.isArray(q)?q.length:0)")
+  echo "queue length = $n"
+  [ "$n" -le 0 ] && break
+
+  i=$((i+1))
+  [ "$i" -gt "$max" ] && { echo "stop: reached max runs=$max"; exit 1; }
+
+  echo "run #$i"
+  node /opt/tshare-api/scripts/generate_genba_weekly.js
+  sleep 8
+done
+'
+========================
