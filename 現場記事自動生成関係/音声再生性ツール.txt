@@ -1,0 +1,7 @@
+構成
+tts-tool/
+  server.mjs
+  public/
+    index.html
+  .env
+  package.json
